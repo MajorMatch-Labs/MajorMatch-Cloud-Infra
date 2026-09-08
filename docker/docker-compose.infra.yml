@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  edge_gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gateway
+    container_name: majormatch_edge_gateway
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+      - ../cache_data:/var/cache/majormatch
+    networks:
+      - majormatch_net
+
+  cloudflared_tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: majormatch_cloudflared
+    restart: always
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - majormatch_net
+    depends_on:
+      - edge_gateway
+
+networks:
+  majormatch_net:
+    name: majormatch_bridge_network
+    driver: bridge

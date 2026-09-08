@@ -1,0 +1,6 @@
+.env
+*.local
+credentials.json
+cache_data/
+/var/
+*.log

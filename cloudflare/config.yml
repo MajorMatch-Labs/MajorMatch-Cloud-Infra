@@ -1,0 +1,14 @@
+tunnel: ${CLOUDFLARE_TUNNEL_ID}
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Định tuyến toàn bộ lưu lượng API an toàn về Edge Gateway
+  - hostname: api.majormatch.vn
+    service: http://edge_gateway:80
+
+  # Định tuyến giao diện Client (nếu triển khai qua Gateway nội bộ)
+  - hostname: majormatch.vn
+    service: http://client_app:3000
+
+  # Quy tắc mặc định chặn và trả về 404 cho các truy vấn lạ
+  - service: http_status:404

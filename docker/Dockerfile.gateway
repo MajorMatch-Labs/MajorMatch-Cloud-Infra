@@ -1,0 +1,18 @@
+FROM nginx:1.25-alpine
+
+# Cài đặt sqlite3 và bash phục vụ vận hành và kiểm tra
+RUN apk add --no-cache bash sqlite curl tzdata
+
+# Cấu hình múi giờ chuẩn Việt Nam
+ENV TZ=Asia/Ho_Chi_Minh
+
+# Sao chép cấu hình tùy biến
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/conf.d/ /etc/nginx/conf.d/
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/healthz || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]
