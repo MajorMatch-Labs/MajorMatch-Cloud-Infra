@@ -22,12 +22,14 @@ import time
 import urllib.request
 import urllib.error
 
+from http.server import ThreadingHTTPServer
+
 # Cấu hình địa chỉ
 AWS_SSH_TARGET = "ubuntu@13.250.26.54"
 AWS_CLOUD_DB = "http://127.0.0.1:8001"
 HPC_HOST_TAILSCALE = "http://100.123.107.114:8000"
 HPC_HOST_WIFI = "http://192.168.100.155:8000"
-EDGE_LISTEN_PORT = 8080
+EDGE_LISTEN_PORT = int(os.getenv("EDGE_LISTEN_PORT", "18080"))
 
 def get_hpc_host():
     """Tự động kiểm tra nốt HPC Legion khả dụng."""
@@ -182,10 +184,11 @@ def main():
     else:
         print("\033[92m[✓] SSH 2-Way Tunnel thành công! 100% Request Client sẽ đi qua Joy 3.\033[0m")
 
-    socketserver.TCPServer.allow_reuse_address = True
+    ThreadingHTTPServer.allow_reuse_address = True
     try:
-        with socketserver.TCPServer(("0.0.0.0", EDGE_LISTEN_PORT), Joy3EdgeDispatcherHandler) as httpd:
-            print("\n\033[1;93m>>> JOY 3 EDGE ĐANG LẮNG NGHE TOÀN BỘ LƯU LƯỢNG. SẴN SÀNG IN LOG! <<<\033[0m\n")
+        with ThreadingHTTPServer(("0.0.0.0", EDGE_LISTEN_PORT), Joy3EdgeDispatcherHandler) as httpd:
+            httpd.daemon_threads = True
+            print("\n\033[1;93m>>> JOY 3 EDGE ĐANG LẮNG NGHE ĐA LUỒNG TOÀN BỘ LƯU LƯỢNG. SẴN SÀNG IN LOG! <<<\033[0m\n")
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n[!] Đang tắt Joy 3 Edge Gateway...")
