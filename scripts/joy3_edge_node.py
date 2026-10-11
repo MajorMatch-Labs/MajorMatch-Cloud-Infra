@@ -73,19 +73,11 @@ class Joy3EdgeDispatcherHandler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length > 0 else None
 
-        # 1. Phân loại tác vụ
-        is_gpu = any(p in path for p in ["/roadmap/generate", "/chat/stream", "/assessment/calculate-match", "/upload-transcript"])
-        
-        if is_gpu:
-            dest_tier = "⚡ [HPC GPU LEGION]"
-            dest_color = "\033[92m"
-            backend_url = f"{ACTIVE_HPC}{path}"
-            desc = "Suy luận LLM (Qwen 2.5) & Tính toán Ma trận Cosine"
-        else:
-            dest_tier = "☁️  [AWS CLOUD DB]"
-            dest_color = "\033[93m"
-            backend_url = f"{AWS_CLOUD_DB}{path}"
-            desc = "Truy vấn / Lưu trữ CSDL SQLite Bền vững trên AWS EC2"
+        # Mọi request đi qua Ingress EC2 Port 8000 -> Joy 3 đều được chuyển tiếp về HPC Legion GPU
+        dest_tier = "⚡ [HPC GPU LEGION]"
+        dest_color = "\033[92m"
+        backend_url = f"{ACTIVE_HPC}{path}"
+        desc = "Suy luận LLM (Qwen 2.5) & Tính toán Ma trận Cosine trên Legion PC"
 
         # Bóc tách thông tin sinh viên nếu có
         info_extra = ""
@@ -115,25 +107,38 @@ class Joy3EdgeDispatcherHandler(http.server.BaseHTTPRequestHandler):
             req = urllib.request.Request(backend_url, data=body, headers=headers, method=method)
             with urllib.request.urlopen(req, timeout=120.0) as resp:
                 status_code = resp.status
-                self.send_response(status_code)
-                for k, v in resp.getheaders():
-                    if k.lower() not in ["transfer-encoding", "content-length"]:
-                        self.send_header(k, v)
-                self.end_headers()
-
                 is_stream = "text/event-stream" in resp.getheader("Content-Type", "")
-                if is_stream:
-                    print("   ⚡ \033[96m[STREAMING TOKENS]\033[0m  : Đang truyền trực tiếp token SSE về Trình duyệt...")
 
-                total_bytes = 0
-                while True:
-                    chunk = resp.read(1024)
-                    if not chunk:
-                        break
-                    total_bytes += len(chunk)
-                    self.wfile.write(chunk)
+                if is_stream:
+                    self.send_response(status_code)
+                    for k, v in resp.getheaders():
+                        if k.lower() not in ["transfer-encoding", "content-length"]:
+                            self.send_header(k, v)
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    print("   ⚡ \033[96m[STREAMING TOKENS]\033[0m  : Đang truyền trực tiếp token SSE về Trình duyệt...")
+                    total_bytes = 0
+                    while True:
+                        chunk = resp.read(1024)
+                        if not chunk:
+                            break
+                        total_bytes += len(chunk)
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+                else:
+                    resp_bytes = resp.read()
+                    total_bytes = len(resp_bytes)
+                    self.send_response(status_code)
+                    for k, v in resp.getheaders():
+                        if k.lower() not in ["transfer-encoding", "content-length", "connection"]:
+                            self.send_header(k, v)
+                    self.send_header("Content-Length", str(total_bytes))
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(resp_bytes)
                     self.wfile.flush()
 
+                self.close_connection = True
                 elapsed_ms = round((time.time() - start_time) * 1000, 1)
                 st_color = "\033[92m" if status_code < 400 else "\033[91m"
                 print(f"   ◀ Kết quả phản hồi   : {st_color}{status_code} OK\033[0m ({elapsed_ms} ms, {total_bytes} bytes)")
