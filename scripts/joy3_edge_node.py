@@ -112,14 +112,16 @@ class Joy3EdgeDispatcherHandler(http.server.BaseHTTPRequestHandler):
                 if is_stream:
                     self.send_response(status_code)
                     for k, v in resp.getheaders():
-                        if k.lower() not in ["transfer-encoding", "content-length"]:
+                        if k.lower() not in ["transfer-encoding", "content-length", "connection"]:
                             self.send_header(k, v)
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("X-Accel-Buffering", "no")
                     self.send_header("Connection", "close")
                     self.end_headers()
                     print("   ⚡ \033[96m[STREAMING TOKENS]\033[0m  : Đang truyền trực tiếp token SSE về Trình duyệt...")
                     total_bytes = 0
                     while True:
-                        chunk = resp.read(1024)
+                        chunk = getattr(resp, "read1", resp.read)(1024)
                         if not chunk:
                             break
                         total_bytes += len(chunk)
